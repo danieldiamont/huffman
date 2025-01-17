@@ -214,7 +214,7 @@ func Encode(codes map[byte]uint32, data []byte) (*EncodedData, error) {
 
     bitPosition = 7
     byteResult = 0
-    payload := make([]byte, 0)
+    payload := make([]uint8, 0)
 
     for _, ch := range data {
         _, prs := codes[ch]
@@ -223,44 +223,41 @@ func Encode(codes map[byte]uint32, data []byte) (*EncodedData, error) {
         }
 
         code := codes[ch] // uint32
-        stack := make([]uint8, 0)
-
-        if code != 0 {
-            for code != 0 {
-                bit := uint8(code & 1) 
-                stack = append(stack, bit)
-                code >>= 1
-            }
-
-            for i := len(stack)-1; i >= 0; i-- {
-                bit := stack[i]
-                byteResult |= (bit << bitPosition)
-
-                bitPosition -= 1
-                if bitPosition == -1 {
-                    bitPosition = 7
-                    payload = append(payload, byteResult)
-                    byteResult = 0
-                }
-            }
-        } else {
+        if code == 0 {
             bitPosition -= 1
             if bitPosition == -1 {
                 payload = append(payload, byteResult)
-                bitPosition = 7
                 byteResult = 0
+                bitPosition = 7
+            }
+        } else {
+            offset := 31
+            for i := 31; i >= 0; i-- {
+                bit := code & ( 1 << i)
+                if bit != 0 {
+                    break
+                }
+                offset -= 1
+            }
+
+            for i := offset; i >= 0; i-- {
+                bit := (code >> i) & 0x1
+                byteResult |= (uint8(bit) << uint8(bitPosition))
+                bitPosition -= 1
+                if bitPosition == -1 {
+                    payload = append(payload, byteResult)
+                    byteResult = 0
+                    bitPosition = 7
+                }
             }
         }
     }
 
     padding = 0
-
-    if bitPosition < 7 {
+    if bitPosition != 7 {
+        padding = uint8(bitPosition) + 1
         payload = append(payload, byteResult)
-        pos := uint8(bitPosition)
-        padding = pos + 1
     }
-
 
     e := &EncodedData{}
     e.Codes = codes
